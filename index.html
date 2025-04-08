@@ -51,7 +51,8 @@ You are an EMS training simulator with three roles: Dispatch, Proctor, and Patie
         stopTimer();
       }
 
-      const response = await fetch("/api/gpt", {
+      const response = await fetch("https://ems-simulator-backend.onrender.com", {
+
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ messages })
