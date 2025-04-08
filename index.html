@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>EMS Patient Simulator</title>
+  <style>
+    body { font-family: Arial; padding: 2rem; }
+    #messages { border: 1px solid #ccc; padding: 1rem; height: 300px; overflow-y: auto; }
+    #countdown { font-size: 1.5rem; font-weight: bold; margin-top: 1rem; }
+  </style>
+</head>
+<body>
+  <h1>EMS Patient Simulator</h1>
+  <div id="instructions">
+    This is a medical scenario that follows NREMT guidelines. Use a microphone or type your questions. You will have 15 minutes to initiate transport. Say “I am ready for the scenario” to begin.
+  </div>
+
+  <div id="countdown">15:00</div>
+  <div id="messages"></div>
+
+  <input type="text" id="userInput" placeholder="Type here or use your mic..." style="width: 80%;">
+  <button onclick="sendMessage()">Send</button>
+  <button onclick="startVoice()">🎤 Speak</button>
+
+  <script>
+    const messagesDiv = document.getElementById("messages");
+    const countdownEl = document.getElementById("countdown");
+    let timeLeft = 900; // 15 minutes
+    let timerInterval = null;
+    let started = false;
+
+    const systemPrompt = \`
+You are an EMS training simulator with three roles: Dispatch, Proctor, and Patient. Wait for “I am ready for the scenario.” End when they say “I am done with the scenario.”
+\`;
+
+    const messages = [{ role: "system", content: systemPrompt }];
+
+    async function sendMessage() {
+      const input = document.getElementById("userInput").value;
+      if (!input.trim()) return;
+
+      appendMessage("👤 You", input);
+      messages.push({ role: "user", content: input });
+
+      if (input.toLowerCase().includes("i am ready for the scenario") && !started) {
+        startTimer();
+        started = true;
+      }
+
+      if (input.toLowerCase().includes("i am done with the scenario") && started) {
+        stopTimer();
+      }
+
+      const response = await fetch("/api/gpt", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ messages })
+      });
+      const data = await response.json();
+      const reply = data.reply;
+
+      messages.push({ role: "assistant", content: reply });
+      appendMessage("🤖 Simulator", reply);
+      speak(reply);
+      document.getElementById("userInput").value = "";
+    }
+
+    function appendMessage(sender, text) {
+      messagesDiv.innerHTML += \`<p><strong>\${sender}:</strong> \${text}</p>\`;
+      messagesDiv.scrollTop = messagesDiv.scrollHeight;
+    }
+
+    function speak(text) {
+      const utterance = new SpeechSynthesisUtterance(text);
+      speechSynthesis.speak(utterance);
+    }
+
+    function startTimer() {
+      timeLeft = 900;
+      timerInterval = setInterval(() => {
+        if (timeLeft <= 0) {
+          clearInterval(timerInterval);
+          countdownEl.textContent = "⏱️ TIME'S UP!";
+          speak("Time's up. The scenario has ended.");
+          return;
+        }
+        timeLeft--;
+        const min = String(Math.floor(timeLeft / 60)).padStart(2, '0');
+        const sec = String(timeLeft % 60).padStart(2, '0');
+        countdownEl.textContent = \`\${min}:\${sec}\`;
+      }, 1000);
+    }
+
+    function stopTimer() {
+      clearInterval(timerInterval);
+      countdownEl.textContent = "✅ Transport Initiated. Timer Stopped.";
+    }
+
+    function startVoice() {
+      const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+      recognition.lang = "en-US";
+      recognition.interimResults = false;
+      recognition.maxAlternatives = 1;
+
+      recognition.onresult = (event) => {
+        const transcript = event.results[0][0].transcript;
+        document.getElementById("userInput").value = transcript;
+        sendMessage();
+      };
+
+      recognition.onerror = (event) => {
+        alert("Speech error: " + event.error);
+      };
+
+      recognition.start();
+    }
+  </script>
+</body>
+</html>
